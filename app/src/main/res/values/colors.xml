@@ -8,4 +8,7 @@
     <color name="type_express">#C62828</color>
     <color name="type_chukuang">#E07B00</color>
     <color name="type_local">#1F5AA6</color>
+    <color name="live_ok">#2E7D32</color>
+    <color name="live_late">#C62828</color>
+    <color name="live_none">#8A8A8A</color>
 </resources>

@@ -8,6 +8,8 @@ import android.os.Bundle;
 import android.os.Handler;
 import android.os.Looper;
 import android.text.Editable;
+import android.text.SpannableString;
+import android.text.style.ForegroundColorSpan;
 import android.text.TextWatcher;
 import android.view.LayoutInflater;
 import android.view.View;
@@ -30,7 +32,9 @@ import java.nio.charset.StandardCharsets;
 import java.time.LocalDate;
 import java.time.LocalTime;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
@@ -61,6 +65,8 @@ public class MainActivity extends Activity {
         String no, type, head, dep, arr;
         int minutes;
         boolean suspended;
+        Integer delay;        // null＝沒有即時資料（多半是還沒從始發站開出）
+        String liveStation;   // 目前在哪一站
     }
 
     @Override
@@ -194,6 +200,7 @@ public class MainActivity extends Activity {
         statusView.setText("查詢中…");
         io.execute(() -> {
             String err = null;
+            boolean liveOk = false;
             List<Train> result = new ArrayList<>();
             try {
                 // 快取 2 小時：省 TDX 免金鑰額度，又不會錯過當天臨時停駛的更新
@@ -210,7 +217,9 @@ public class MainActivity extends Activity {
                         if (json == null) throw e;   // 有舊的就先用舊的
                     }
                 }
-                result = parse(json, from, to, after);
+                result = parse(json, from, to);
+                liveOk = mergeLive(result);
+                result = filterAfter(result, after);
             } catch (QuotaException e) {
                 err = "TDX 免金鑰的每日查詢次數用完了，明天再試";
             } catch (Exception e) {
@@ -218,6 +227,7 @@ public class MainActivity extends Activity {
             }
             final String error = err;
             final List<Train> r = result;
+            final String liveNote = liveOk ? "" : "（即時誤點暫時抓不到，只顯示表定時間）";
             main.post(() -> {
                 if (seq != querySeq) return;   // 已經有更新的查詢
                 if (error != null) {
@@ -226,7 +236,7 @@ public class MainActivity extends Activity {
                     LocalDate today = LocalDate.now();
                     String head = today.getMonthValue() + "/" + today.getDayOfMonth() + " "
                             + timeView.getText() + " 以後，" + nameOf(from) + " → " + nameOf(to);
-                    show(r, r.isEmpty() ? head + "：今天沒有班次了" : head + "，共 " + r.size() + " 班");
+                    show(r, (r.isEmpty() ? head + "：今天沒有班次了" : head + "，共 " + r.size() + " 班") + liveNote);
                 }
             });
         });
@@ -240,6 +250,56 @@ public class MainActivity extends Activity {
     }
 
     static class QuotaException extends Exception {}
+
+    private static final String LIVE_API = "https://tdx.transportdata.tw/api/basic/v3/Rail/TRA/TrainLiveBoard?%24format=JSON";
+    private String liveJson;
+    private long liveAt;
+
+    /**
+     * 抓全台正在跑的列車（約 1 分鐘更新），用車次對上時刻表，填誤點分鐘與目前位置。
+     * 抓不到不算查詢失敗，回傳 false 讓畫面註明。只快取 1 分鐘。
+     */
+    private boolean mergeLive(List<Train> list) {
+        try {
+            if (liveJson == null || System.currentTimeMillis() - liveAt > 60 * 1000L) {
+                liveJson = fetch(LIVE_API);
+                liveAt = System.currentTimeMillis();
+            }
+            JSONArray a = new JSONObject(liveJson).optJSONArray("TrainLiveBoards");
+            if (a == null) return false;
+            Map<String, JSONObject> byNo = new HashMap<>();
+            for (int i = 0; i < a.length(); i++) {
+                JSONObject o = a.getJSONObject(i);
+                byNo.put(o.getString("TrainNo"), o);
+            }
+            for (Train t : list) {
+                JSONObject o = byNo.get(t.no);
+                if (o == null) continue;
+                t.delay = o.optInt("DelayTime", 0);
+                JSONObject st = o.optJSONObject("StationName");
+                t.liveStation = st != null ? st.optString("Zh_tw") : "";
+            }
+            return true;
+        } catch (Exception e) {
+            return false;
+        }
+    }
+
+    /** 以「表定＋誤點」的預估出發時間篩：表定已過但還在誤點中、還沒開走的車也要列出來。 */
+    private static List<Train> filterAfter(List<Train> list, LocalTime after) {
+        int afterMin = after.getHour() * 60 + after.getMinute();
+        List<Train> out = new ArrayList<>();
+        for (Train t : list) {
+            int eff = toMin(t.dep) + (t.delay != null ? t.delay : 0);
+            if (eff >= afterMin) out.add(t);
+        }
+        return out;
+    }
+
+    private static String plus(String hhmm, int minutes) {
+        int m = (toMin(hhmm) + minutes) % (24 * 60);
+        return String.format("%02d:%02d", m / 60, m % 60);
+    }
 
     private static String fetch(String url) throws Exception {
         HttpURLConnection c = (HttpURLConnection) new URL(url).openConnection();
@@ -272,11 +332,10 @@ public class MainActivity extends Activity {
         return Integer.parseInt(hhmm.substring(0, 2)) * 60 + Integer.parseInt(hhmm.substring(3, 5));
     }
 
-    static List<Train> parse(String json, String from, String to, LocalTime after) throws Exception {
+    static List<Train> parse(String json, String from, String to) throws Exception {
         JSONArray tt = new JSONObject(json).optJSONArray("TrainTimetables");
         List<Train> out = new ArrayList<>();
         if (tt == null) return out;
-        int afterMin = after.getHour() * 60 + after.getMinute();
         for (int i = 0; i < tt.length(); i++) {
             JSONObject o = tt.getJSONObject(i);
             JSONObject info = o.getJSONObject("TrainInfo");
@@ -293,7 +352,7 @@ public class MainActivity extends Activity {
                     arr = s.getString("ArrivalTime");
                 }
             }
-            if (dep == null || arr == null || toMin(dep) < afterMin) continue;
+            if (dep == null || arr == null) continue;
             Train t = new Train();
             t.no = info.getString("TrainNo");
             String type = info.getJSONObject("TrainTypeName").getString("Zh_tw");
@@ -327,10 +386,31 @@ public class MainActivity extends Activity {
         public View getView(int i, View v, ViewGroup parent) {
             if (v == null) v = LayoutInflater.from(MainActivity.this).inflate(R.layout.row_train, parent, false);
             Train t = trains.get(i);
-            ((TextView) v.findViewById(R.id.times)).setText(t.dep + "  →  " + t.arr);
+            int late = t.delay != null ? t.delay : 0;
+            // 有誤點就顯示預估時間，表定時間放到下一行
+            ((TextView) v.findViewById(R.id.times)).setText(plus(t.dep, late) + "  →  " + plus(t.arr, late));
             String dur = t.minutes >= 60 ? (t.minutes / 60) + " 小時 " + (t.minutes % 60) + " 分" : t.minutes + " 分";
-            ((TextView) v.findViewById(R.id.info)).setText(
-                    (t.suspended ? "⚠ 停駛　" : "") + dur + (t.head.isEmpty() ? "" : "　往" + t.head));
+            String live;
+            int liveColor;
+            if (t.delay == null) {
+                live = "未發車";
+                liveColor = getColor(R.color.live_none);
+            } else if (late > 0) {
+                live = "晚 " + late + " 分（表定 " + t.dep + "）";
+                liveColor = getColor(R.color.live_late);
+            } else {
+                live = "準點";
+                liveColor = getColor(R.color.live_ok);
+            }
+            if (t.suspended) {
+                live = "⚠ 停駛";
+                liveColor = getColor(R.color.live_late);
+            }
+            String rest = "　" + dur + (t.head.isEmpty() ? "" : "　往" + t.head)
+                    + (t.delay != null && t.liveStation != null && !t.liveStation.isEmpty() ? "　目前在" + t.liveStation : "");
+            SpannableString info = new SpannableString(live + rest);
+            info.setSpan(new ForegroundColorSpan(liveColor), 0, live.length(), 0);
+            ((TextView) v.findViewById(R.id.info)).setText(info);
             TextView type = v.findViewById(R.id.type);
             type.setText(t.type);
             type.setTextColor(typeColor(t.type));
