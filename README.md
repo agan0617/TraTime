@@ -13,7 +13,7 @@
 
 交通部 [TDX 運輸資料流通服務](https://tdx.transportdata.tw/) 的台鐵每日時刻表（`/v3/Rail/TRA/DailyTrainTimetable/OD/{起}/to/{訖}/{日期}`）。
 
-- **不帶金鑰**呼叫，TDX 對免金鑰有每日次數上限。同一天同一段查詢會快取 2 小時，連不上時先用舊的
+- TDX 對免金鑰有每日次數上限。同一天同一段查詢會快取 2 小時，連不上時先用舊的
 - 額度用完時 App 會顯示「TDX 免金鑰的每日查詢次數用完了」
 - 車站清單打包在 `app/src/main/assets/stations.json`（從 TDX `/v3/Rail/TRA/Station` 取的站碼與站名），不用每次連線
 

@@ -246,6 +246,9 @@ public class MainActivity extends Activity {
         c.setConnectTimeout(10000);
         c.setReadTimeout(15000);
         c.setRequestProperty("Accept", "application/json");
+        // TDX 免金鑰只放行瀏覽器，App 原本的 Dalvik UA 會拿到 401（Ken 2026-09-26 選擇這樣做，不申請金鑰）
+        c.setRequestProperty("User-Agent",
+                "Mozilla/5.0 (Linux; Android 15) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0 Mobile Safari/537.36");
         c.setRequestProperty("Accept-Encoding", "identity");
         int code = c.getResponseCode();
         if (code == 429) throw new QuotaException();
