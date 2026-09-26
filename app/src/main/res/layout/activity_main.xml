@@ -31,11 +31,17 @@
 
             <Button
                 android:id="@+id/swap"
-                android:layout_width="56dp"
-                android:layout_height="56dp"
-                android:text="⇄"
-                android:textSize="22sp"
-                android:contentDescription="起訖站對調" />
+                android:layout_width="wrap_content"
+                android:layout_height="48dp"
+                android:minWidth="0dp"
+                android:minHeight="0dp"
+                android:paddingLeft="14dp"
+                android:paddingRight="14dp"
+                android:text="⇄ 交換"
+                android:textSize="15sp"
+                android:textColor="@color/on_accent"
+                android:backgroundTint="@color/accent"
+                android:contentDescription="交換起站和終站" />
 
             <LinearLayout
                 android:layout_width="0dp"
