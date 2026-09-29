@@ -2,6 +2,8 @@
 
 查台鐵兩站之間、今天某個時間以後班次的 Android App。
 
+<img src="docs/screenshot.jpg" width="300" alt="screenshot">
+
 ## 功能
 
 - **起站／終站**：點站名挑選，可打字篩選（「台北」「臺北」都找得到）；中間的 ⇄ 對調起訖站
