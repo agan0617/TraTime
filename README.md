@@ -37,3 +37,12 @@ gradlew assembleRelease
 產出 `app/build/outputs/apk/release/app-release.apk`（用這台電腦的 debug 金鑰簽章）。改版時改 `app/build.gradle` 的 `versionCode`（+1）與 `versionName`，Release tag 用 `v` + versionName。
 
 ⚠️ 從 Claude 桌面版開的 shell 建置時，`%TEMP%` 會被 MSIX 沙盒導走，Gradle 會報「Unable to establish loopback connection」。把 `TEMP`／`TMP` 設到 `D:\Temp\jdk`，並加 `JAVA_TOOL_OPTIONS=-Djdk.net.unixdomain.tmpdir=D:\Temp\jdk -Djava.io.tmpdir=D:\Temp\jdk`。
+
+## 版權
+
+Copyright © 2026 agan0617. All rights reserved. 保留所有權利，詳見 [LICENSE](LICENSE)。
+
+使用的第三方素材（依各自授權）：
+
+- **交通部 TDX 運輸資料流通服務**：台鐵每日時刻表、即時列車位置（誤點）API；assets/stations.json 的站碼與站名也取自 TDX，政府資料開放授權條款第1版（https://tdx.transportdata.tw/）
+- **Gradle Wrapper**：建置腳本，Apache-2.0（https://gradle.org/）
